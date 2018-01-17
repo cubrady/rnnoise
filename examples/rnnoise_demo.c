@@ -29,30 +29,35 @@
 #include "rnnoise.h"
 
 #define FRAME_SIZE 480
+#define SAMPLE_RATE 48000 // Hard code here for the input audio format requirement
 
 int main(int argc, char **argv) {
-  clock_t begin = clock();
-
-  int i;
-  int first = 1;
-  float x[FRAME_SIZE];
-  FILE *f1, *fout;
-  DenoiseState *st = rnnoise_create();
-
-  if (argc!=3) {
+  if (argc != 3) {
     fprintf(stderr, "usage: %s <noisy speech> <output denoised>\n", argv[0]);
     return 1;
   }
 
-  f1 = fopen(argv[1], "r");
-  fout = fopen(argv[2], "w");
-  int frame_count = 0;
+  int i;
+  int first = 1;
+  float x[FRAME_SIZE];
 
+  DenoiseState *st = rnnoise_create();
+
+  //const double frame_length = (double)FRAME_SIZE / (double)SAMPLE_RATE;
+  //fprintf(stderr, "frame_length : %.2f\n", frame_length);
+
+  FILE *fin = fopen(argv[1], "r");
+  FILE *fout = fopen(argv[2], "w");
+  size_t frame_index = 0;
+  short tmp[FRAME_SIZE];
+
+  clock_t begin = clock();
   while (1) {
-    short tmp[FRAME_SIZE];
-    fread(tmp, sizeof(short), FRAME_SIZE, f1);
+    
+    // short : 2bytes - 16 Bits Per Sample
+    fread(tmp, sizeof(short), FRAME_SIZE, fin);
 
-    if (feof(f1))
+    if (feof(fin))
       break;
 
     for (i=0;i<FRAME_SIZE;i++)
@@ -61,7 +66,7 @@ int main(int argc, char **argv) {
     // float rnnoise_process_frame(DenoiseState *st, float *out, const float *in)
     rnnoise_process_frame(st, x, x);
     //float vad_prob = rnnoise_process_frame(st, x, x);
-    //fprintf(stderr, "frame_count:%d, vad_prob:%.3f\n", frame_count++, vad_prob);
+    //fprintf(stderr, "frame_index:%d, vad_prob:%.3f\n", frame_index, vad_prob);
 
     for (i=0;i<FRAME_SIZE;i++)
       tmp[i] = x[i];
@@ -70,14 +75,19 @@ int main(int argc, char **argv) {
       fwrite(tmp, sizeof(short), FRAME_SIZE, fout);
 
     first = 0;
+    frame_index ++;
   }
-
-  rnnoise_destroy(st);
-  fclose(f1);
-  fclose(fout);
-
   clock_t end = clock();
   double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+  
+  rnnoise_destroy(st);
+  fclose(fin);
+  fclose(fout);
+
+  size_t process_frame_count = frame_index * FRAME_SIZE;
+  fprintf(stderr, "[config] SAMPLE_RATE : %d\n", SAMPLE_RATE);
+  fprintf(stderr, "Processed Frame count : %zu, Audio length : %.2f sec\n", process_frame_count, (double)process_frame_count / (double)SAMPLE_RATE);
+  fprintf(stderr, "Throughput : %.0f frame/sec, %.2f sec audio data/sec\n", process_frame_count / time_spent, process_frame_count/ (double)SAMPLE_RATE / time_spent);
   fprintf(stderr, "Time Spent: %.2f ms\n", (1000.0 * time_spent));
 
   return 0;

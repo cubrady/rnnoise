@@ -422,8 +422,8 @@ static void frame_synthesis(DenoiseState *st, float *out, const kiss_fft_cpx *y)
 
 static void biquad(float *y, float mem[2], const float *x, const float *b, const float *a, int N) {
   int i;
+  float xi, yi;
   for (i=0;i<N;i++) {
-    float xi, yi;
     xi = x[i];
     yi = x[i] + mem[0];
     mem[0] = mem[1] + (b[0]*(double)xi - a[0]*(double)yi);
